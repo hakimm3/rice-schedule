@@ -3,13 +3,16 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// PostgreSQL connection pool
+// PostgreSQL connection pool with SSL configuration for self-signed certificates
 export const pool = new Pool({
   connectionString: process.env.POSTGRES_URL || process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false,
-    checkServerIdentity: () => undefined
-  },
+  ssl: process.env.NODE_ENV === 'production'
+    ? {
+        rejectUnauthorized: false
+      }
+    : {
+        rejectUnauthorized: false
+      },
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
