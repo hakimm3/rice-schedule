@@ -6,17 +6,24 @@ import type BetterSqlite3 from 'better-sqlite3';
 
 dotenv.config();
 
-// SQLite database path
-const dbPath = process.env.DB_PATH || path.join(__dirname, '../../data/rice_app.db');
+// SQLite database path - use /tmp for serverless (Vercel)
+const isVercel = process.env.VERCEL === '1';
+const dbPath = isVercel 
+  ? '/tmp/rice_app.db' 
+  : (process.env.DB_PATH || path.join(__dirname, '../../data/rice_app.db'));
 
-// Ensure data directory exists
-const dbDir = path.dirname(dbPath);
-if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true });
+// Ensure data directory exists (only for local)
+if (!isVercel) {
+  const dbDir = path.dirname(dbPath);
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+  }
 }
 
 // Create SQLite database connection
-export const db: BetterSqlite3.Database = new Database(dbPath, { verbose: console.log });
+export const db: BetterSqlite3.Database = new Database(dbPath, { 
+  verbose: isVercel ? undefined : console.log 
+});
 
 // Enable foreign keys
 db.pragma('foreign_keys = ON');
