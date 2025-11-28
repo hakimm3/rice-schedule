@@ -3,16 +3,28 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// PostgreSQL connection pool with SSL configuration for self-signed certificates
+// Create SSL configuration that handles self-signed certificates
+const createSSLConfig = () => {
+  // For serverless environments (Vercel, AWS Lambda) or when explicitly needed
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NODE_ENV === 'production') {
+    return {
+      rejectUnauthorized: false,
+      // Additional options to handle various certificate issues
+      checkServerIdentity: () => undefined,
+      secureProtocol: 'TLSv1_2_method'
+    };
+  }
+  
+  // For development, still handle self-signed certs
+  return {
+    rejectUnauthorized: false
+  };
+};
+
+// PostgreSQL connection pool with robust SSL configuration
 export const pool = new Pool({
   connectionString: process.env.POSTGRES_URL || process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production'
-    ? {
-        rejectUnauthorized: false
-      }
-    : {
-        rejectUnauthorized: false
-      },
+  ssl: createSSLConfig(),
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
