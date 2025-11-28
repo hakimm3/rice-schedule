@@ -1,11 +1,11 @@
 import { Response } from 'express';
-import { db } from '../config/database';
+import { pool } from '../config/database';
 import { AuthRequest } from '../middleware/authMiddleware';
 
 // Get all users sorted by last buy date (queue list)
 export const getUserQueue = async (req: AuthRequest, res: Response) => {
   try {
-    const users = db.prepare(`
+    const result = await pool.query(`
       SELECT 
         u.id,
         u.name,
@@ -14,23 +14,23 @@ export const getUserQueue = async (req: AuthRequest, res: Response) => {
         u.created_at,
         CASE 
           WHEN u.last_buy_date IS NULL THEN 999999
-          ELSE CAST((julianday('now') - julianday(u.last_buy_date)) AS INTEGER)
+          ELSE EXTRACT(DAY FROM (CURRENT_TIMESTAMP - u.last_buy_date))
         END as days_since_last_buy,
         COUNT(t.id) as total_transactions
       FROM users u
       LEFT JOIN transactions t ON u.id = t.user_id
-      GROUP BY u.id
+      GROUP BY u.id, u.name, u.email, u.last_buy_date, u.created_at
       ORDER BY 
         CASE 
           WHEN u.last_buy_date IS NULL THEN 1
           ELSE 0
         END,
         u.last_buy_date ASC NULLS FIRST
-    `).all();
+    `);
 
     res.json({ 
-      queue: users,
-      total: users.length 
+      queue: result.rows,
+      total: result.rows.length 
     });
   } catch (error) {
     console.error('Get user queue error:', error);
@@ -43,7 +43,7 @@ export const getUserStats = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.userId;
 
-    const stats = db.prepare(`
+    const result = await pool.query(`
       SELECT 
         COUNT(*) as total_transactions,
         SUM(kg) as total_kg,
@@ -52,10 +52,10 @@ export const getUserStats = async (req: AuthRequest, res: Response) => {
         MIN(date) as first_purchase,
         MAX(date) as last_purchase
       FROM transactions
-      WHERE user_id = ?
-    `).get(userId);
+      WHERE user_id = $1
+    `, [userId]);
 
-    res.json({ stats });
+    res.json({ stats: result.rows[0] });
   } catch (error) {
     console.error('Get user stats error:', error);
     res.status(500).json({ error: 'Failed to get user stats' });

@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { db } from '../config/database';
+import { pool } from '../config/database';
 import { AuthRequest } from '../middleware/authMiddleware';
 import { User, UserResponse } from '../types';
 
@@ -14,8 +14,8 @@ export const register = async (req: AuthRequest, res: Response) => {
     }
 
     // Check if user exists
-    const existingUser = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
-    if (existingUser) {
+    const existingUser = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    if (existingUser.rows.length > 0) {
       return res.status(400).json({ error: 'Email already registered' });
     }
 
@@ -23,11 +23,12 @@ export const register = async (req: AuthRequest, res: Response) => {
     const passwordHash = await bcrypt.hash(password, 10);
 
     // Create user
-    const result = db.prepare(
-      'INSERT INTO users (email, password_hash, name) VALUES (?, ?, ?)'
-    ).run(email, passwordHash, name);
+    const result = await pool.query(
+      'INSERT INTO users (email, password_hash, name) VALUES ($1, $2, $3) RETURNING id, email, name, created_at',
+      [email, passwordHash, name]
+    );
 
-    const user = db.prepare('SELECT id, email, name, created_at FROM users WHERE id = ?').get(result.lastInsertRowid) as UserResponse;
+    const user = result.rows[0] as UserResponse;
 
     // Generate token
     const token = jwt.sign(
@@ -60,10 +61,12 @@ export const login = async (req: AuthRequest, res: Response) => {
     }
 
     // Find user
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as User | undefined;
-    if (!user) {
+    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    if (result.rows.length === 0) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
+
+    const user: User = result.rows[0];
 
     // Verify password
     const isValidPassword = await bcrypt.compare(password, user.password_hash);
@@ -98,15 +101,16 @@ export const getProfile = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.userId;
 
-    const user = db.prepare(
-      'SELECT id, email, name, last_buy_date, created_at FROM users WHERE id = ?'
-    ).get(userId);
+    const result = await pool.query(
+      'SELECT id, email, name, last_buy_date, created_at FROM users WHERE id = $1',
+      [userId]
+    );
 
-    if (!user) {
+    if (result.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    res.json({ user });
+    res.json({ user: result.rows[0] });
   } catch (error) {
     console.error('Get profile error:', error);
     res.status(500).json({ error: 'Failed to get profile' });

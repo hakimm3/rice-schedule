@@ -1,57 +1,59 @@
-import Database from 'better-sqlite3';
-import path from 'path';
+import { Pool } from 'pg';
 import dotenv from 'dotenv';
-import fs from 'fs';
-import type BetterSqlite3 from 'better-sqlite3';
 
 dotenv.config();
 
-// SQLite database path - use /tmp for serverless (Vercel)
-const isVercel = process.env.VERCEL === '1';
-const dbPath = isVercel 
-  ? '/tmp/rice_app.db' 
-  : (process.env.DB_PATH || path.join(__dirname, '../../data/rice_app.db'));
-
-// Ensure data directory exists (only for local)
-if (!isVercel) {
-  const dbDir = path.dirname(dbPath);
-  if (!fs.existsSync(dbDir)) {
-    fs.mkdirSync(dbDir, { recursive: true });
-  }
-}
-
-// Create SQLite database connection
-export const db: BetterSqlite3.Database = new Database(dbPath, { 
-  verbose: isVercel ? undefined : console.log 
+// PostgreSQL connection pool
+export const pool = new Pool({
+  connectionString: process.env.POSTGRES_URL || process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false
+  },
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000,
 });
 
-// Enable foreign keys
-db.pragma('foreign_keys = ON');
+// Test database connection and initialize schema
+export const testConnection = async () => {
+  try {
+    const client = await pool.connect();
+    console.log('✅ PostgreSQL database connected successfully');
+    
+    // Initialize schema
+    await initSchema(client);
+    
+    client.release();
+  } catch (error) {
+    console.error('❌ Database connection failed:', error);
+    throw error;
+  }
+};
 
 // Initialize database schema
-const initSchema = () => {
-  db.exec(`
+const initSchema = async (client: any) => {
+  await client.query(`
     -- Create users table
     CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL,
-      name TEXT NOT NULL,
-      last_buy_date TEXT,
-      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      id SERIAL PRIMARY KEY,
+      email VARCHAR(255) UNIQUE NOT NULL,
+      password_hash VARCHAR(255) NOT NULL,
+      name VARCHAR(255) NOT NULL,
+      last_buy_date TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
     -- Create transactions table
     CREATE TABLE IF NOT EXISTS transactions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL,
-      date TEXT NOT NULL,
-      kg REAL NOT NULL,
-      price REAL NOT NULL,
-      prove_image TEXT,
-      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      date TIMESTAMP NOT NULL,
+      kg DECIMAL(10, 2) NOT NULL,
+      price DECIMAL(10, 2) NOT NULL,
+      prove_image VARCHAR(500),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
@@ -60,36 +62,32 @@ const initSchema = () => {
     CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date);
     CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
+    -- Create function to update updated_at timestamp
+    CREATE OR REPLACE FUNCTION update_updated_at_column()
+    RETURNS TRIGGER AS $$
+    BEGIN
+        NEW.updated_at = CURRENT_TIMESTAMP;
+        RETURN NEW;
+    END;
+    $$ language 'plpgsql';
+
     -- Create triggers for updated_at
-    CREATE TRIGGER IF NOT EXISTS update_users_updated_at
-    AFTER UPDATE ON users
-    BEGIN
-      UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
-    END;
+    DROP TRIGGER IF EXISTS update_users_updated_at ON users;
+    CREATE TRIGGER update_users_updated_at 
+    BEFORE UPDATE ON users
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-    CREATE TRIGGER IF NOT EXISTS update_transactions_updated_at
-    AFTER UPDATE ON transactions
-    BEGIN
-      UPDATE transactions SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
-    END;
+    DROP TRIGGER IF EXISTS update_transactions_updated_at ON transactions;
+    CREATE TRIGGER update_transactions_updated_at 
+    BEFORE UPDATE ON transactions
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
   `);
-};
-
-// Test database connection
-export const testConnection = async () => {
-  try {
-    initSchema();
-    console.log('✅ SQLite database connected successfully');
-    console.log('📁 Database location:', dbPath);
-  } catch (error) {
-    console.error('❌ Database connection failed:', error);
-    throw error;
-  }
+  
+  console.log('✅ Database schema initialized');
 };
 
 // Graceful shutdown
-process.on('exit', () => db.close());
-process.on('SIGINT', () => {
-  db.close();
-  process.exit(0);
+process.on('SIGTERM', async () => {
+  await pool.end();
+  console.log('Database pool closed');
 });
