@@ -5,6 +5,11 @@ dotenv.config();
 
 // Create SSL configuration that handles self-signed certificates
 const createSSLConfig = () => {
+  // If NODE_TLS_REJECT_UNAUTHORIZED is set to 0, disable SSL validation entirely
+  if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0') {
+    return false;
+  }
+  
   // For serverless environments (Vercel, AWS Lambda) or when explicitly needed
   if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NODE_ENV === 'production') {
     return {
