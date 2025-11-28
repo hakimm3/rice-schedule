@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rice Transaction App</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Auth Section -->
+        <div id="auth-section">
+            <div class="container">
+                <div class="auth-card">
+                    <h1>🌾 Rice Transaction App</h1>
+                    
+                    <!-- Login Form -->
+                    <div id="login-form" class="form-container">
+                        <h2>Login</h2>
+                        <form id="loginForm">
+                            <input type="email" id="login-email" placeholder="Email" required>
+                            <input type="password" id="login-password" placeholder="Password" required>
+                            <button type="submit" class="btn btn-primary">Login</button>
+                        </form>
+                        <p class="switch-form">
+                            Don't have an account? 
+                            <a href="#" onclick="showRegister()">Register</a>
+                        </p>
+                    </div>
+
+                    <!-- Register Form -->
+                    <div id="register-form" class="form-container" style="display: none;">
+                        <h2>Register</h2>
+                        <form id="registerForm">
+                            <input type="text" id="register-name" placeholder="Full Name" required>
+                            <input type="email" id="register-email" placeholder="Email" required>
+                            <input type="password" id="register-password" placeholder="Password" required>
+                            <button type="submit" class="btn btn-primary">Register</button>
+                        </form>
+                        <p class="switch-form">
+                            Already have an account? 
+                            <a href="#" onclick="showLogin()">Login</a>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main App Section -->
+        <div id="main-section" style="display: none;">
+            <nav class="navbar">
+                <div class="container">
+                    <h1>🌾 Rice Transaction</h1>
+                    <div class="nav-right">
+                        <span id="user-name"></span>
+                        <button onclick="logout()" class="btn btn-secondary">Logout</button>
+                    </div>
+                </div>
+            </nav>
+
+            <div class="container">
+                <div class="dashboard">
+                    <!-- User Info Card -->
+                    <div class="card">
+                        <h3>User Information</h3>
+                        <p><strong>Email:</strong> <span id="user-email"></span></p>
+                        <p><strong>Last Buy Date:</strong> <span id="last-buy-date">-</span></p>
+                    </div>
+
+                    <!-- Queue List Card -->
+                    <div class="card">
+                        <h3>🍚 Rice Purchase Queue</h3>
+                        <p class="queue-description">Users sorted by who needs to buy rice next (oldest purchase first)</p>
+                        <div id="queue-list">
+                            <p class="loading">Loading queue...</p>
+                        </div>
+                    </div>
+
+                    <!-- Add Transaction Form -->
+                    <div class="card">
+                        <h3>Add New Transaction</h3>
+                        <form id="transactionForm">
+                            <div class="form-group">
+                                <label>Date:</label>
+                                <input type="datetime-local" id="transaction-date" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Weight (kg):</label>
+                                <input type="number" id="transaction-kg" step="0.01" placeholder="0.00" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Price (Rp):</label>
+                                <input type="number" id="transaction-price" step="0.01" placeholder="0.00" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Proof Image:</label>
+                                <input type="file" id="transaction-image" accept="image/*">
+                            </div>
+                            <button type="submit" class="btn btn-primary">Add Transaction</button>
+                        </form>
+                    </div>
+
+                    <!-- Transactions List -->
+                    <div class="card">
+                        <h3>Transaction History</h3>
+                        <div id="transactions-list">
+                            <p class="loading">Loading transactions...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="/js/main.js"></script>
+</body>
+</html>
